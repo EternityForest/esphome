@@ -62,6 +62,167 @@ void CronTrigger::loop() {
     this->trigger();
 }
 CronTrigger::CronTrigger(RealTimeClock *rtc) : rtc_(rtc) {}
+
+static int16_t parse_digit(char c)
+{
+  c = c - '0';
+  if(c<0 || c>1)
+  {
+    return -1;
+  }
+
+  return c;
+}
+
+
+void CronTrigger::_add_one_cron_field(uint8_t field, uint8_t value, bool field_is_interval)
+{
+  int temp_counter =0;
+
+
+  // If this is an interval, not a value,
+  // we start at 0 and count up till we exceed the range of the field.
+  if(field_is_interval){
+    temp_counter=value;
+  }
+
+  while(1)
+    {
+
+      if(field==0)
+      {
+        if(temp_counter>59)
+        {
+          break;
+        }
+      }
+      else if(field==1)
+      {
+        if(temp_counter>23)
+        {
+          break;
+        }
+      }
+      else if(field==2)
+      {
+        if(temp_counter>31)
+        {
+          break;
+        }
+      }
+      else if(field==3)
+      {
+        if(temp_counter>12)
+        {
+          break;
+        }
+      }
+      else if(field==4)
+      {
+        if(temp_counter>7)
+        {
+          break;
+        }
+        
+      }
+
+      if(!field_is_interval)
+      {
+        break;
+      }
+      else{
+        temp_counter += value;
+      }
+  }
+}
+
+
+void CronTrigger::set_with_expression(std::string expression) {
+  uint8_t field = -1;
+  bool got_to_field_start = false;
+  bool field_is_interval = false;
+  uint8_t digit_place_value =1;
+  uint8_t accumulator =0;
+  bool empty_field = true;
+  int len = 0;
+
+    for (auto expr = expression.begin(); expr != expression.end(); expr++)
+    {
+      // Field advance logic
+      if (!(*expr==' ' || *expr=='\t'))
+      {
+        got_to_field_start=true;
+      }
+      else{
+
+        if(*expr == ','){
+          //Does not begin a new field, don't increment field.
+          accumulator =0;
+          this -> _add_one_cron_field(field, accumulator, field_is_interval);
+
+          digit_place_value = 1;
+          continue;
+        }
+        if(got_to_field_start)
+        {
+          //We hit a space after reaching the start of a field.
+          // That must be the end of the field.
+          field +=1;
+          if(field >4)
+          {
+            return;
+          }
+
+          got_to_field_start= false;
+          digit_place_value=1;
+
+          if(!empty_field)
+          {
+              //Actually add the stuff from the field we just parsed
+              this -> _add_one_cron_field(field, accumulator, field_is_interval);
+          }
+          accumulator =0;
+          empty_field = true;
+
+          field_is_interval = false;
+          continue;
+        }
+      }
+
+      if (! (*expr == '*'))
+      {
+        empty_field = false;
+      }
+
+
+      if (*expr == '/')
+      {
+        field_is_interval = true;
+        continue;
+      }
+
+      int digit = parse_digit(*expr);
+
+      if (digit==-1)
+      {
+        //Pretty sure this is an error
+        continue;
+      }
+
+      accumulator *= digit_place_value;
+      accumulator += digit;
+      digit_place_value *=10;
+
+  }
+  //There was no trailing whitespace,
+  // We didn't do the last field, do it now
+  if(got_to_field_start)
+  {
+    this -> _add_one_cron_field(field, accumulator, field_is_interval);
+  }
+}
+
+
 void CronTrigger::add_seconds(const std::vector<uint8_t> &seconds) {
   for (uint8_t it : seconds)
     this->add_second(it);
