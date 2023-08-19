@@ -33,7 +33,8 @@ class CronTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override;
 
  protected:
-  void _add_one_cron_field(uint8_t field, uint8_t value, bool field_is_interval);
+  void _add_cron_range(uint8_t field, uint8_t min, uint8_t max, uint8_t step);
+  void _add_one_cron_field(uint8_t field, uint8_t value, bool field_is_interval, bool field_is_range, uint8_t interval_start);
   std::bitset<61> seconds_;
   std::bitset<60> minutes_;
   std::bitset<24> hours_;
