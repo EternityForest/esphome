@@ -95,6 +95,7 @@ void CronTrigger::_add_one_cron_field(uint8_t field, uint8_t value, bool field_i
         {
           break;
         }
+        this -> add_minute(temp_counter);
       }
       else if(field==1)
       {
@@ -102,6 +103,7 @@ void CronTrigger::_add_one_cron_field(uint8_t field, uint8_t value, bool field_i
         {
           break;
         }
+        this -> add_hour(temp_counter);
       }
       else if(field==2)
       {
@@ -109,6 +111,7 @@ void CronTrigger::_add_one_cron_field(uint8_t field, uint8_t value, bool field_i
         {
           break;
         }
+        this -> add_day_of_month(temp_counter);
       }
       else if(field==3)
       {
@@ -116,6 +119,7 @@ void CronTrigger::_add_one_cron_field(uint8_t field, uint8_t value, bool field_i
         {
           break;
         }
+        this -> add_month(temp_counter);
       }
       else if(field==4)
       {
@@ -123,7 +127,7 @@ void CronTrigger::_add_one_cron_field(uint8_t field, uint8_t value, bool field_i
         {
           break;
         }
-        
+        this -> add_day_of_week(temp_counter);
       }
 
       if(!field_is_interval)
@@ -141,7 +145,6 @@ void CronTrigger::set_with_expression(std::string expression) {
   uint8_t field = -1;
   bool got_to_field_start = false;
   bool field_is_interval = false;
-  uint8_t digit_place_value =1;
   uint8_t accumulator =0;
   bool empty_field = true;
   int len = 0;
@@ -159,8 +162,6 @@ void CronTrigger::set_with_expression(std::string expression) {
           //Does not begin a new field, don't increment field.
           accumulator =0;
           this -> _add_one_cron_field(field, accumulator, field_is_interval);
-
-          digit_place_value = 1;
           continue;
         }
         if(got_to_field_start)
@@ -174,8 +175,6 @@ void CronTrigger::set_with_expression(std::string expression) {
           }
 
           got_to_field_start= false;
-          digit_place_value=1;
-
           if(!empty_field)
           {
               //Actually add the stuff from the field we just parsed
@@ -209,10 +208,10 @@ void CronTrigger::set_with_expression(std::string expression) {
         continue;
       }
 
-      accumulator *= digit_place_value;
+      //Converting base 10 numbers into ints, one digit at
+      // a time
+      accumulator *= 10;
       accumulator += digit;
-      digit_place_value *=10;
-
   }
   //There was no trailing whitespace,
   // We didn't do the last field, do it now
