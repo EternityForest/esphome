@@ -5,6 +5,18 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 
+
+// This is a legacy compatibility hack, which seems
+// less hacky than any other way I can think to do it.
+// We normally let the YAML configure whether to use flash, in this case we
+// also need to respect the old way of setting flash prefs.
+
+#ifdef USE_ESP8266_PREFERENCES_FLASH
+static const bool force_legacy_flash_ = true;
+#else
+static const bool force_legacy_flash_ = false;
+#endif
+
 namespace esphome {
 namespace globals {
 
@@ -24,7 +36,7 @@ template<typename T> class GlobalsComponent : public Component {
   T value_{};
 };
 
-template<typename T> class RestoringGlobalsComponent : public Component {
+template<typename T, bool IN_FLASH> class RestoringGlobalsComponent : public Component {
  public:
   using value_type = T;
   explicit RestoringGlobalsComponent() = default;
@@ -37,7 +49,7 @@ template<typename T> class RestoringGlobalsComponent : public Component {
   T &value() { return this->value_; }
 
   void setup() override {
-    this->rtc_ = global_preferences->make_preference<T>(1944399030U ^ this->name_hash_);
+    this->rtc_ = global_preferences->make_preference<T>(1944399030U ^ this->name_hash_, IN_FLASH || force_legacy_flash_);
     this->rtc_.load(&this->value_);
     memcpy(&this->prev_value_, &this->value_, sizeof(T));
   }
@@ -65,6 +77,54 @@ template<typename T> class RestoringGlobalsComponent : public Component {
   ESPPreferenceObject rtc_;
 };
 
+/// Use with string or subclasses of strings
+template<typename T, uint8_t SZ, bool IN_FLASH> class RestoringGlobalStringComponent : public Component {
+ public:
+  using value_type = T;
+  explicit RestoringGlobalStringComponent() = default;
+  explicit RestoringGlobalStringComponent(T initial_value) { value_ = initial_value; }
+
+  T &value() { return this->value_; }
+
+  void setup() override {
+    char temp[SZ];
+
+    this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_, IN_FLASH || force_legacy_flash_);
+    if (this->rtc_.load(temp)) {
+      this->value_.assign(temp + 1, temp[0]);
+      memcpy(&this->prev_value_, &this->value_, sizeof(T));
+    }
+  }
+
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+  void loop() override { store_value_(); }
+
+  void on_shutdown() override { store_value_(); }
+
+  void set_name_hash(uint32_t name_hash) { this->name_hash_ = name_hash; }
+
+ protected:
+  void store_value_() {
+    int diff = this->value_.compare(this->prev_value_);
+
+    if (diff != 0) {
+      // Make it into a length prefixed thing
+      char temp[SZ];
+      memcpy(temp + 1, this->value_.data(), min((int) this->value_.size(), SZ - 1));
+      temp[0] = (char) (min((int)this->value_.size(), SZ-1));
+
+      this->rtc_.save(temp);
+      this->prev_value_.assign(this->value_);
+    }
+  }
+
+  T value_{};
+  T prev_value_{};
+  uint32_t name_hash_{};
+  ESPPreferenceObject rtc_;
+};
+
 template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...> {
  public:
   explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
@@ -80,7 +140,8 @@ template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...
 };
 
 template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
-template<typename T> T &id(RestoringGlobalsComponent<T> *value) { return value->value(); }
+template<typename T, bool IN_FLASH> T &id(RestoringGlobalsComponent<T,IN_FLASH> *value) { return value->value(); }
+template<typename T, uint8_t SZ, bool IN_FLASH> T &id(RestoringGlobalStringComponent<T, SZ, IN_FLASH> *value) { return value->value(); }
 
 }  // namespace globals
 }  // namespace esphome
