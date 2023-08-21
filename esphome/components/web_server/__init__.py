@@ -20,6 +20,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 
+import gzip
+
 AUTO_LOAD = ["json", "web_server_base"]
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
@@ -112,6 +114,7 @@ def build_index_html(config) -> str:
 def add_resource_as_progmem(resource_name: str, content: str) -> None:
     """Add a resource to progmem."""
     content_encoded = content.encode("utf-8")
+    content_encoded = gzip.compress(content_encoded)
     content_encoded_size = len(content_encoded)
     bytes_as_int = ", ".join(str(x) for x in content_encoded)
     uint8_t = f"const uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
