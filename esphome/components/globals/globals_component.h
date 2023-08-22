@@ -90,10 +90,7 @@ template<typename T, uint8_t SZ, bool IN_FLASH> class RestoringGlobalStringCompo
     char temp[SZ];
     this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_, IN_FLASH || force_legacy_flash_);
     bool hasdata = this->rtc_.load(&temp);
-    ESP_LOGW("TAG", "str pref %s", this->value_.c_str());
-
     if (hasdata) {
-      ESP_LOGW("TAG", "str pref loaded %d %d", temp[0],temp[1]);
       this->value_.assign(temp + 1, temp[0]);
     }
     this->prev_value_.assign(this->value_);
@@ -117,14 +114,8 @@ template<typename T, uint8_t SZ, bool IN_FLASH> class RestoringGlobalStringCompo
       char temp[SZ];
       memcpy(temp + 1, this->value_.c_str(), min((int) this->value_.size(), SZ - 1));
       temp[0] = (char) (min((int)this->value_.size(), SZ-1));
-      ESP_LOGW("TAG", "str pref saving %d %d", temp[0],temp[1]);
-
-      ESP_LOGW("gft", "Saving %d bytes",min((int) this->value_.size(), SZ - 1));
-
       this->rtc_.save(&temp);
       this->prev_value_.assign(this->value_);
-
-      this->setup();
     }
 
 

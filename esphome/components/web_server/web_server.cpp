@@ -388,16 +388,12 @@ void WebServer::handle_user_settings_request(AsyncWebServerRequest *request) {
 void WebServer::handle_setting_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto obj : ui_settings) {
     if (obj.key != match.id){
-      ESP_LOGW(TAG, "Not match this one");
-
       continue;
     }
 
     if(request ->method() == HTTP_GET){
       if (obj.string_getter){
         auto temp =obj.string_getter();
-        ESP_LOGW(TAG, "Str value %s", temp.c_str());
-
         request->send(200, "application/json", temp.c_str());
         return;
       }
@@ -407,23 +403,16 @@ void WebServer::handle_setting_request(AsyncWebServerRequest *request, const Url
       }
     }
     else{
-        ESP_LOGW(TAG, "Not GET");
-
         if (match.method != "set") {
-          ESP_LOGW(TAG, "Not set is %s", match.method.c_str());
           request->send(404);
           return;
         }
 
         if (request->hasParam("value")) {
-        ESP_LOGW(TAG, "Has value");
-
           if (obj.string_setter)
           {
             std::string temp;
             temp.assign(request->getParam("value")->value().c_str());
-              ESP_LOGW(TAG, "set to  %s", temp.c_str());
-
             bool r = obj.string_setter(temp);
             if(r)
             {
@@ -431,7 +420,7 @@ void WebServer::handle_setting_request(AsyncWebServerRequest *request, const Url
             }
             else{
               request->send(500);
-              ESP_LOGW(TAG, "Setter failed");
+              ESP_LOGE(TAG, "Setter failed");
             }
             return;
 
