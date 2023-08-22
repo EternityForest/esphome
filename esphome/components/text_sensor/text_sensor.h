@@ -49,6 +49,10 @@ class TextSensor : public EntityBase {
   /// Clear the entire filter chain.
   void clear_filters();
 
+  /// Set whether the state should persist or not
+  void set_flash(bool);
+
+
   void add_on_state_callback(std::function<void(std::string)> callback);
   /// Add a callback that will be called every time the sensor sends a raw value.
   void add_on_raw_state_callback(std::function<void(std::string)> callback);

@@ -1,4 +1,5 @@
 #pragma once
+#include <limits>
 
 #include "list_entities.h"
 
@@ -16,6 +17,8 @@
 #if USE_WEBSERVER_VERSION == 2
 extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE;
+extern const uint8_t ESPHOME_WEBSERVER_USER_SETTINGS[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_USER_SETTINGS_SIZE;
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -38,6 +41,58 @@ struct UrlMatch {
   std::string method;  ///< The method that's being called, for example "turn_on"
   bool valid;          ///< Whether this match is valid
 };
+
+class  UISetting;
+
+
+/*
+  For simplicity, since there are only two types of setting, float and string,
+  Here I just jam them into one.  This should all be implementation details,
+  and a user should not see anythign but the YAML and the UI.
+
+  This lets us store both versions of this in one array, and be able to iterate them both
+  but have it get and set different types, at the cost of about a few wasted variables.
+
+  We could instead have subclasses, but this keeps it simple.
+*/
+class  UISetting
+{
+  public:
+    const std::string key;
+
+    std::function<float()> getter;
+    std::function<bool(float)> setter;
+
+    std::function<std::string()> string_getter;
+    std::function<bool(std::string)> string_setter;
+
+    void register_self();
+
+    
+    // String version
+    UISetting(std::string key, std::function<std::string()> string_getter, std::function<bool(std::string)> string_setter):
+          key(key),
+
+          string_getter(string_getter), string_setter(string_setter), 
+
+          //unused
+          getter(0), setter(0)
+          {
+          };
+
+
+    // Float version
+    UISetting(std::string key, std::function<float()> getter, std::function<bool(float)> setter):
+          key(key),
+          getter(getter), setter(setter),
+          // Unused
+          string_getter(0), string_setter(0)
+          
+          {
+          };
+};
+
+
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
@@ -129,6 +184,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
+
+  void handle_user_settings_request(AsyncWebServerRequest *request);
+  void handle_setting_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;

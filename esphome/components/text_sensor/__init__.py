@@ -112,6 +112,9 @@ async def map_filter_to_code(config, filter_id):
     )
 
 
+
+CONF_PERSIST = 'persist'
+
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
@@ -129,6 +132,7 @@ TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).exte
                 ),
             }
         ),
+        cv.Optional(CONF_PERSIST): cv.enum({"flash":"flash", "off": "off"})
     }
 )
 
@@ -167,6 +171,9 @@ async def setup_text_sensor_core_(var, config):
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
+
+    if config.get(CONF_PERSIST,'off') == 'flash':
+        cg.add(var.set_flash(True))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

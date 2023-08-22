@@ -17,15 +17,21 @@ from esphome.const import (
     CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
+    CONF_FRIENDLY_NAME,
+    CONF_MIN_VALUE,
+    CONF_MAX_VALUE,
+    CONF_STEP
 )
 from esphome.core import CORE, coroutine_with_priority
 
 import gzip
+import json
 
 AUTO_LOAD = ["json", "web_server_base"]
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
+UISetting = web_server_ns.class_("UISetting")
 
 
 def default_url(config):
@@ -54,6 +60,12 @@ def validate_ota(config):
         raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
     return config
 
+CONF_USER_SETTINGS = "user_settings"
+CONF_GETTER = "getter"
+CONF_SETTER = "setter"
+CONF_UI_CATEGORY = "category"
+CONF_UI_CLASS = "class"
+CONF_DATA_TYPE = "type"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -84,6 +96,26 @@ CONFIG_SCHEMA = cv.All(
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+
+            cv.Optional(CONF_USER_SETTINGS, default=[]): cv.Schema([
+                cv.Schema({
+                        cv.Required(CONF_GETTER): cv.lambda_,
+                        cv.Required(CONF_SETTER): cv.lambda_,
+                        cv.Required(CONF_DATA_TYPE): cv.string,
+                        cv.Required(CONF_FRIENDLY_NAME): cv.string,
+                        cv.Optional(CONF_UI_CATEGORY, default=''): cv.string,
+                        cv.Optional(CONF_UI_CLASS, default=''): cv.string,
+                        cv.GenerateID(): cv.declare_id(UISetting),
+                        
+                        # Only applies if type is float
+                        cv.Optional(CONF_MIN_VALUE): cv.float_,
+                        cv.Optional(CONF_MAX_VALUE): cv.float_,
+                        cv.Optional(CONF_STEP): cv.float_,
+
+                })
+
+            ]),
+
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(["esp32", "esp8266"]),
@@ -127,6 +159,26 @@ def add_resource_as_progmem(resource_name: str, content: str) -> None:
 
 @coroutine_with_priority(40.0)
 async def to_code(config):
+
+
+    # All metadata about the user settings goes into a fixed JSON file
+    # So that we can store it in compressed form and worry less about
+    # compactness.
+    json_settings_info = []
+
+    for i in config[CONF_USER_SETTINGS]:
+
+        json_settings_info.append({
+            'type': i[CONF_DATA_TYPE],
+            'id': str(i[CONF_ID]),
+            'class': i[CONF_UI_CLASS],
+            'category': i[CONF_UI_CATEGORY],
+            'friendly_name': i[CONF_FRIENDLY_NAME],
+        })
+    
+
+
+    
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
@@ -140,6 +192,7 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version == 2:
+        add_resource_as_progmem("USER_SETTINGS", json.dumps(json_settings_info));
         add_resource_as_progmem("INDEX_HTML", build_index_html(config))
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
@@ -162,3 +215,16 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+
+
+
+    for i in config[CONF_USER_SETTINGS]:
+        if i[CONF_DATA_TYPE] == 'string':
+            m = cg.new_Pvariable(i[CONF_ID],
+                                cg.std_string(str(i[CONF_ID])),
+                                await cg.process_lambda(i[CONF_GETTER], [], return_type=cg.std_string),
+                                await cg.process_lambda(i[CONF_SETTER], [(cg.std_string,'value')], return_type=cg.bool_),
+                                )
+            cg.add(m.register_self())
+        
+    

@@ -18,9 +18,15 @@ RestoringGlobalsComponent = globals_ns.class_("RestoringGlobalsComponent", cg.Co
 RestoringGlobalStringComponent = globals_ns.class_("RestoringGlobalStringComponent", cg.Component)
 GlobalVarSetAction = globals_ns.class_("GlobalVarSetAction", automation.Action)
 
+all_global_vars = {}
 
 CONF_MAX_SIZE = "max_data_length"
 CONF_IN_FLASH = "store_in_flash"
+
+CONF_USER_SETTING_NAME = "user_setting_name"
+CONF_USER_SETTING_CLASS = "user_setting_class"
+CONF_USER_SETTING_CATEGORY = "user_setting_category"
+
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
@@ -30,7 +36,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
         cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
         cv.Optional(CONF_IN_FLASH, default=False): cv.boolean,
-        cv.Optional(CONF_MAX_SIZE): cv.int_range(0,254)
+        cv.Optional(CONF_MAX_SIZE): cv.int_range(0,254),
+        cv.Optional(CONF_USER_SETTING_NAME, default=''): cv.string,
+        cv.Optional(CONF_USER_SETTING_CLASS, default=''): cv.string,
+        cv.Optional(CONF_USER_SETTING_CATEGORY, default=''): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -38,19 +47,20 @@ CONFIG_SCHEMA = cv.Schema(
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(-100.0)
 async def to_code(config):
+    all_global_vars[config[CONF_ID].id] = config
+
     type_ = cg.RawExpression(config[CONF_TYPE])
     restore = config[CONF_RESTORE_VALUE]
     flash = config[CONF_IN_FLASH]
 
     if("string") in str(type_).lower():
-        template_args = cg.TemplateArguments(type_, config.get(CONF_MAX_SIZE, 48), flash)
+        template_args = cg.TemplateArguments(type_, config.get(CONF_MAX_SIZE, 32), flash)
         type = RestoringGlobalStringComponent if restore else GlobalsComponent
     else:    
         template_args = cg.TemplateArguments(type_, flash)
         type = RestoringGlobalsComponent if restore else GlobalsComponent
 
     res_type = type.template(template_args)
-
     initial_value = None
     if CONF_INITIAL_VALUE in config:
         initial_value = cg.RawExpression(config[CONF_INITIAL_VALUE])

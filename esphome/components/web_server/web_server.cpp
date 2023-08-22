@@ -57,6 +57,13 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
 }
 #endif
 
+std::vector<UISetting> ui_settings;
+
+void UISetting::register_self(){
+  ui_settings.push_back(*this);
+}
+
+
 UrlMatch match_url(const std::string &url, bool only_domain = false) {
   UrlMatch match;
   match.valid = false;
@@ -351,6 +358,15 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 }
 #endif
 
+void WebServer::handle_user_settings_request(AsyncWebServerRequest *request) {
+  AsyncWebServerResponse *response =
+      request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_USER_SETTINGS, ESPHOME_WEBSERVER_USER_SETTINGS_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
+  request->send(response);
+}
+
+
+
 #define set_json_id(root, obj, sensor, start_config) \
   (root)["id"] = sensor; \
   if (((start_config) == DETAIL_ALL)) \
@@ -367,6 +383,76 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   if (((start_config) == DETAIL_ALL)) \
     (root)["icon"] = (obj)->get_icon();
 
+
+
+void WebServer::handle_setting_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto obj : ui_settings) {
+    if (obj.key != match.id){
+      ESP_LOGW(TAG, "Not match this one");
+
+      continue;
+    }
+
+    if(request ->method() == HTTP_GET){
+      if (obj.string_getter){
+        auto temp =obj.string_getter();
+        ESP_LOGW(TAG, "Str value %s", temp.c_str());
+
+        request->send(200, "application/json", temp.c_str());
+        return;
+      }
+      else{
+        request->send(200, "application/json", std::to_string(obj.getter()).c_str());
+        return;
+      }
+    }
+    else{
+        ESP_LOGW(TAG, "Not GET");
+
+        if (match.method != "set") {
+          ESP_LOGW(TAG, "Not set is %s", match.method.c_str());
+          request->send(404);
+          return;
+        }
+
+        if (request->hasParam("value")) {
+        ESP_LOGW(TAG, "Has value");
+
+          if (obj.string_setter)
+          {
+            std::string temp;
+            temp.assign(request->getParam("value")->value().c_str());
+              ESP_LOGW(TAG, "set to  %s", temp.c_str());
+
+            bool r = obj.string_setter(temp);
+            if(r)
+            {
+            request->send(200);
+            }
+            else{
+              request->send(500);
+              ESP_LOGW(TAG, "Setter failed");
+            }
+            return;
+
+          }
+          else{
+            auto value = parse_number<float>(request->getParam("value")->value().c_str());
+            if (value.has_value()){
+              obj.setter(*value);
+              request->send(200);
+              return;
+            }
+          }
+        }
+    }
+
+  }
+  request->send(404);
+} 
+
+
+
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
   this->events_.send(this->sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -381,6 +467,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
+
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     std::string state;
@@ -1063,9 +1150,20 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+  if (request->url() == "/user_settings_list.json") {
+    return true;
+  }
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
+
+  if (match.domain == "setting")
+  {
+    return true;
+  }
+
+
 #ifdef USE_SENSOR
   if (request->method() == HTTP_GET && match.domain == "sensor")
     return true;
@@ -1153,7 +1251,19 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
+if (request->url() == "/user_settings_list.json") {
+  this->handle_user_settings_request(request);
+  return;
+}
+
   UrlMatch match = match_url(request->url().c_str());
+
+  if (match.domain == "setting") {
+    this->handle_setting_request(request, match);
+    return;
+  }
+
+
 #ifdef USE_SENSOR
   if (match.domain == "sensor") {
     this->handle_sensor_request(request, match);
