@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <cinttypes>
+#include <cctype>
 
 namespace esphome {
 namespace time {
@@ -104,14 +105,34 @@ void CronTrigger::_add_cron_range(uint8_t field, uint8_t min, uint8_t max, uint8
     }
 
     temp_counter += step;
-
     if (temp_counter > max) {
       break;
     }
   }
 }
 
-void CronTrigger::set_with_expression(std::string expression) {
+static const std::vector<const std::string> weekday{"mon", "tue", "wed", "thu", "fri", "sat", "sun"};
+static const std::vector<const std::string> month{"jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "nov", "dec"};
+
+int parse_time_string(std::string s) {
+  auto it = find(weekday.begin(), weekday.end(), s);
+  if (it != weekday.end()) {
+    return (it - weekday.begin()) + 1;
+  }
+  auto it = find(month.begin(), month.end(), s);
+  if (it != month.end()) {
+    return (it - month.begin()) + 1;
+  }
+  return -1;
+}
+
+void CronTrigger::set_with_expression(const std::string val) {
+  // Make copy so we can mutate
+  std::string expression = val;
+  // Force always space terminated
+  expression.append(" ");
+  bool error_found = false;
+
   uint8_t field = -1;
   bool got_to_field_start = false;
 
@@ -121,6 +142,7 @@ void CronTrigger::set_with_expression(std::string expression) {
   bool field_is_range = false;
 
   uint8_t accumulator = 0;
+  std::string string_accumulator;
 
   // Use this for tracking range expressions
   // and interval starts
@@ -130,20 +152,14 @@ void CronTrigger::set_with_expression(std::string expression) {
   int len = 0;
 
   char c = 0;
-  char last_character = 0;
 
-  for (auto expr = expression.begin(); expr != (expression.end() + 1); expr++) {
+  for (auto expr = expression.begin(); expr != (expression.end()); expr++) {
     // To make parsing easier we want every field to be space terminated.
     // So we iterate one past the end and just pretend there's a space at the end
     // of the string
 
-    last_character = c;
-
-    if (expr >= expression.end()) {
-      c = ' ';
-    } else {
-      c = *expr;
-    }
+    char last_character = c;
+    c = *expr;
 
     // Field advance logic
     if (!(c == ' ' || c == '\t')) {
@@ -216,15 +232,21 @@ void CronTrigger::set_with_expression(std::string expression) {
 
     int digit = parse_digit(c);
 
+    // It's not a number, so add it to the digit accumulator
     if (digit == -1) {
-      // Pretty sure this is an error
-      continue;
+      string_accumulator.push_back(tolower(c));
+      if (string_accumulator.size() == 3) {
+        accumulator = parse_time_string(string_accumulator);
+        if (accumulator == 0) {
+          ESP_LOGE(TAG, "Invalid month or weekday");
+        }
+      }
+    } else {
+      // Converting base 10 numbers into ints, one digit at
+      //  a time
+      accumulator *= 10;
+      accumulator += digit;
     }
-
-    // Converting base 10 numbers into ints, one digit at
-    //  a time
-    accumulator *= 10;
-    accumulator += digit;
   }
 }
 
