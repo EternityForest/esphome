@@ -112,7 +112,8 @@ void CronTrigger::_add_cron_range(uint8_t field, uint8_t min, uint8_t max, uint8
 }
 
 static const std::vector<const std::string> weekday{"mon", "tue", "wed", "thu", "fri", "sat", "sun"};
-static const std::vector<const std::string> month{"jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "nov", "dec"};
+static const std::vector<const std::string> month{"jan", "feb", "mar", "apr", "may", "jun",
+                                                  "jul", "aug", "sep", "oct", "nov", "dec"};
 
 int parse_time_string(std::string s) {
   auto it = find(weekday.begin(), weekday.end(), s);
