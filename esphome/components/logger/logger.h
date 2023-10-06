@@ -6,6 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esp_pm.h"
 
 #ifdef USE_ARDUINO
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -75,6 +76,7 @@ class Logger : public Component {
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
+  esp_pm_lock_handle_t    pm_lock_handle = nullptr;
 #endif
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }

@@ -5,6 +5,7 @@
 #include <driver/uart.h>
 #include "esphome/core/component.h"
 #include "uart_component.h"
+#include "esp_pm.h"
 
 namespace esphome {
 namespace uart {
@@ -32,7 +33,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
   QueueHandle_t uart_event_queue_;
   uart_config_t get_config_();
   SemaphoreHandle_t lock_;
-
+  esp_pm_lock_handle_t    pm_lock_handle = nullptr;
   bool has_peek_{false};
   uint8_t peek_byte_;
 };

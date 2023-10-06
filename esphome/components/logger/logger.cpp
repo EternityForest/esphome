@@ -243,14 +243,20 @@ void Logger::pre_setup() {
       uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
       // At baud rates below half the (usually?) 1MHZ tick,
       // We use the ref_tick.  At other baud rates we don't really have a choice, we have to use the
-      // APB which doesn't like dynamic frequency selection
-      if(baud_rate_ <= 500000){
+      // APB which doesn't like dynamic frequency selection, so we lock the apb frequency.
+      if (baud_rate_ <= 500000) {
         uart_config.source_clk = UART_SCLK_REF_TICK;
-      }
-      else{
+        if (this -> pm_lock_handle) {
+          esp_pm_lock_release(this -> pm_lock_handle);
+        }
+      } else {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-      uart_config.source_clk = UART_SCLK_DEFAULT;
+        uart_config.source_clk = UART_SCLK_DEFAULT;
 #endif
+        if (this -> pm_lock_handle == nullptr) {
+          esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "loggerapb", &(this -> pm_lock_handle));
+        }
+        esp_pm_lock_acquire(this -> pm_lock_handle);
       }
       uart_param_config(uart_num_, &uart_config);
       const int uart_buffer_size = tx_buffer_size_;
